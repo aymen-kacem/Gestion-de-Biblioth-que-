@@ -1,0 +1,119 @@
+﻿@page "/register"
+@layout Shared.BlankLayout
+@using CoworkingBlazor.Services
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="d-flex align-items-center justify-content-center" style="min-height:70vh;">
+    <div class="row gx-0 shadow-lg" style="max-width:920px; width:100%; border-radius:16px; overflow:hidden;">
+        <div class="col-md-5 d-none d-md-flex align-items-center justify-content-center auth-hero">
+            <div class="text-center" style="max-width:300px;">
+                <h2 style="font-weight:800;">Join CoWorking</h2>
+                <p class="muted" style="color:rgba(255,255,255,0.95);">Create your account and start reserving spaces, managing subscriptions and collaborating with teams.</p>
+                <svg width="140" height="140" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="img-rounded mt-3">
+                    <rect x="2" y="2" width="20" height="20" rx="4" fill="rgba(255,255,255,0.12)" />
+                    <path d="M8 12c1.333-2 6-2 8 0M12 8v4" stroke="rgba(255,255,255,0.9)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div class="mt-4">
+                    <span class="badge-soft">Collaborate • Book • Manage</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-7 p-4 panel">
+            <div class="mb-3 text-center">
+                <h3 class="mb-0">Create your account</h3>
+                <p class="muted small mt-2">Register to access coworking tools</p>
+            </div>
+
+            <EditForm Model="this" OnValidSubmit="HandleRegister">
+                <div class="row g-2">
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label">Username</label>
+                        <input class="form-control" @bind="Username" placeholder="Choose username" />
+                    </div>
+
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind="Email" placeholder="Enter email" />
+                    </div>
+
+                    <div class="col-12 col-md-6 mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" @bind="Password" placeholder="Enter password" />
+                    </div>
+
+                </div>
+
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+                }
+
+                @if (!string.IsNullOrEmpty(SuccessMessage))
+                {
+                    <div class="alert alert-success" role="alert">@SuccessMessage</div>
+                }
+
+                <button type="button" class="btn btn-primary w-100" @onclick="HandleRegister" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Create account
+                </button>
+            </EditForm>
+
+            <div class="text-center mt-4">
+                <small class="muted">Already have an account? <a href="/login">Sign in</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Username = string.Empty;
+    private string Email = string.Empty;
+    private string Password = string.Empty;
+    private string Role = string.Empty;
+    private string ErrorMessage = string.Empty;
+    private string SuccessMessage = string.Empty;
+    private bool IsLoading = false;
+
+    private async Task HandleRegister()
+    {
+        ErrorMessage = SuccessMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Email) 
+            || string.IsNullOrWhiteSpace(Password) )
+        {
+            ErrorMessage = "All fields are required";
+            return;
+        }
+
+        IsLoading = true;
+        try
+        {
+            bool success = await AuthService.RegisterAsync(Username, Email, Password);
+            if (success)
+            {
+                SuccessMessage = "Registration successful! Redirecting to login...";
+                await Task.Delay(1200);
+                NavigationManager.NavigateTo("/login", true);
+            }
+            else
+            {
+                ErrorMessage = "Registration failed. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "Registration failed. Please try again.";
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}

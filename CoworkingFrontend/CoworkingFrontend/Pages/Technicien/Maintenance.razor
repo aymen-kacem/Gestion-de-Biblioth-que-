@@ -1,0 +1,146 @@
+﻿
+@page "/technicien/maintenance"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IMaintenanceService MaintenanceService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-0">Maintenance Tasks</h2>
+            <div class="muted">Tasks assigned to you</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+
+    @if (IsLoadingMaintenance)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (MaintenancesList.Count == 0)
+    {
+        <div class="alert alert-info">
+            <strong>No maintenance tasks assigned.</strong>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var m in MaintenancesList)
+            {
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start justify-content-between">
+                                <div class="me-3" style="flex:1">
+                                    <h5 class="card-title mb-1">Task </h5>
+                                    <div class="muted">Espace: @GetEspaceName(m.EspaceId)</div>
+                                    <div class="muted small">Date: @m.Date.ToString("dd/MM/yyyy")</div>
+                                    <div class="mt-2">@m.Description</div>
+                                </div>
+                                <div class="text-end" style="min-width:160px">
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-1">Status</label>
+                                        <select class="form-select form-select-sm" @bind="m.Statut">
+                                            <option value="Pending">Pending</option>
+                                            <option value="In Progress">In Progress</option>
+                                            <option value="Completed">Completed</option>
+                                        </select>
+                                    </div>
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <button class="btn btn-sm btn-primary" @onclick="() => UpdateMaintenance(m)">Save</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger mt-3">@ErrorMessage</div>
+    }
+</div>
+
+@code {
+    private List<CoworkingFrontend.Models.Maintenance> MaintenancesList = new();
+    private List<Espace> EspacesList = new();
+    private bool IsLoadingMaintenance = true;
+    private bool IsUpdating = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoadingMaintenance = true;
+            MaintenancesList = await MaintenanceService.GetMyMaintenancesAsync();
+            EspacesList = await EspaceService.GetAllEspacesAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            IsLoadingMaintenance = false;
+        }
+    }
+
+    private string GetEspaceName(int espaceId)
+    {
+        var e = EspacesList?.FirstOrDefault(x => x.Id == espaceId);
+        return e != null ? e.Nom : $"#{espaceId}";
+    }
+
+
+    private async Task UpdateMaintenance(CoworkingFrontend.Models.Maintenance maintenance)
+    {
+        ErrorMessage = string.Empty;
+        IsUpdating = true;
+        try
+        {
+            var success = await MaintenanceService.UpdateMaintenanceAsync(maintenance.Id, maintenance);
+            if (success)
+            {
+                await LoadData();
+            }
+            else
+            {
+                ErrorMessage = "Failed to update maintenance task.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error updating: {ex.Message}";
+        }
+        finally
+        {
+            IsUpdating = false;
+        }
+    }
+}

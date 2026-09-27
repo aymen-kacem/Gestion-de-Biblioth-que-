@@ -1,0 +1,249 @@
+﻿@page "/admin/reservations"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IReservationService ReservationService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>All Reservations</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (ReservationsList.Count == 0)
+    {
+        <div class="alert alert-info">No reservations found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>User Name</th>
+                        <th>Espace Name</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var reservation in ReservationsList)
+                    {
+                        <tr>
+                            <td>@reservation.Id</td>
+                            <td>@GetUserName(reservation.UtilisateurId)</td>
+                            <td>@GetEspaceName(reservation.EspaceId)</td>
+                            <td>@reservation.DateDebut.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@reservation.DateFin.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><span class="badge bg-info">@reservation.Statut</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditReservation(reservation)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteReservation(reservation.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Edit Modal -->
+@if (ShowEditModal)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Reservation</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">User</label>
+                        <input type="text" class="form-control" value="@GetUserName(EditReservation.UtilisateurId)" disabled />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Espace</label>
+                        <select class="form-select" @bind="EditReservation.EspaceId">
+                            <option value="0">-- Select Espace --</option>
+                            @foreach (var e in EspacesList)
+                            {
+                                <option value="@e.Id">@e.Nom</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Start</label>
+                        <input type="datetime-local" class="form-control" @bind="EditReservation.DateDebut" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End</label>
+                        <input type="datetime-local" class="form-control" @bind="EditReservation.DateFin" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="EditReservation.Statut">
+                            <option value="@Statut.EnAttente">En Attente</option>
+                            <option value="@Statut.Confirmé">Confirmé</option>
+                            <option value="@Statut.Rejetée">Rejetée</option>
+                            <option value="@Statut.Annulée">Annulée</option>
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(EditError))
+                    {
+                        <div class="alert alert-danger">@EditError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEditReservation">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Reservation> ReservationsList = new();
+    private List<Espace> EspacesList = new();
+    private List<Utilisateur> Users = new();
+    private bool IsLoading = true;
+
+    // Edit state
+    private bool ShowEditModal = false;
+    private Reservation EditReservation = new();
+    private string EditError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoading = true;
+            ReservationsList = await ReservationService.GetAllReservationsAsync();
+            EspacesList = await EspaceService.GetAllEspacesAsync();
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            Users = await AuthService.GetAllUsers();  // ✅ Changed from GetAllTechniciens()
+            if (Users == null)
+                Users = new List<Utilisateur>();
+        }
+        catch
+        {
+            Users = new List<Utilisateur>();
+        }
+    }
+
+    private string GetEspaceName(int id) => EspacesList.FirstOrDefault(e => e.Id == id)?.Nom ?? $"Espace #{id}";
+
+    private string GetUserName(int id)
+    {
+        var user = Users.FirstOrDefault(u => u.Id == id);
+        return user?.UserName ?? $"User #{id}";
+    }
+
+    private async Task LoadReservations()
+    {
+        await LoadData();
+    }
+
+    private async Task DeleteReservation(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Delete this reservation?"))
+        {
+            bool success = await ReservationService.DeleteReservationAsync(id);
+            if (success)
+            {
+                await LoadReservations();
+            }
+        }
+    }
+
+    private void OpenEditReservation(Reservation reservation)
+    {
+        EditError = string.Empty;
+        EditReservation = new Reservation
+        {
+            Id = reservation.Id,
+            UtilisateurId = reservation.UtilisateurId,
+            EspaceId = reservation.EspaceId,
+            DateDebut = reservation.DateDebut,
+            DateFin = reservation.DateFin,
+            Statut = reservation.Statut,
+            Notes = reservation.Notes
+        };
+        ShowEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        ShowEditModal = false;
+        EditReservation = new();
+    }
+
+    private async Task SaveEditReservation()
+    {
+        if (EditReservation.UtilisateurId <= 0 || EditReservation.EspaceId <= 0)
+        {
+            EditError = "User and Espace are required";
+            return;
+        }
+
+        if (EditReservation.DateFin <= EditReservation.DateDebut)
+        {
+            EditError = "End date must be after start date";
+            return;
+        }
+
+        var success = await ReservationService.UpdateReservationAsync(EditReservation.Id, EditReservation);
+        if (success)
+        {
+            ShowEditModal = false;
+            await LoadReservations();
+        }
+        else
+        {
+            EditError = "Failed to update reservation";
+        }
+    }
+}

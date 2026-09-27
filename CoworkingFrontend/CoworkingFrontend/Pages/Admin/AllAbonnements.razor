@@ -1,0 +1,312 @@
+﻿@page "/admin/abonnements"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IAbonnementService AbonnementService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-0">All Abonnements</h2>
+            <div class="muted">Manage system subscriptions</div>
+        </div>
+        <div>
+            <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(GlobalError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            @GlobalError
+            <button type="button" class="btn-close" @onclick="() => GlobalError = string.Empty"></button>
+        </div>
+    }
+
+    @if (IsLoading)
+    {
+        <div class="text-center p-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else
+    {
+        <!-- Edit Modal -->
+        @if (ShowEditModal && EditingAbonnement != null)
+        {
+            <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1" role="dialog">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Abonnement #@EditingAbonnement.Id</h5>
+                            <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">User</label>
+                                    <input type="text" class="form-control" value="@GetUserName(EditingAbonnement.UtilisateurId)" disabled />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Espace</label>
+                                    <select class="form-select" @bind="EditingAbonnement.EspaceId">
+                                        <option value="0">-- Select Espace --</option>
+                                        @foreach (var e in Espaces)
+                                        {
+                                            <option value="@e.Id">@e.Nom (@e.Type)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Type</label>
+                                    <input class="form-control" @bind="EditingAbonnement.Type" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Price</label>
+                                    <input type="number" step="0.01" class="form-control" @bind="EditingAbonnement.Prix" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" value="@DateStartString" @onchange="OnStartDateChanged" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">End Date</label>
+                                    <input type="date" class="form-control" value="@DateEndString" @onchange="OnEndDateChanged" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Status</label>
+                                    <select class="form-select" @bind="EditingAbonnement.Statut">
+                                        @foreach (var s in Enum.GetValues(typeof(Statut)).Cast<Statut>())
+                                        {
+                                            <option value="@s">@s</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Notes</label>
+                                    <textarea class="form-control" rows="3" @bind="EditingAbonnement.Notes"></textarea>
+                                </div>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(EditError))
+                            {
+                                <div class="alert alert-danger mt-3">@EditError</div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                            <button class="btn btn-success" @onclick="SaveEdit" disabled="@IsProcessing">@((IsProcessing) ? "Saving..." : "Save")</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (AbonnementsList.Count == 0)
+        {
+            <div class="alert alert-info">No abonnements found.</div>
+        }
+        else
+        {
+            <div class="table-responsive panel">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Price</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>User Name</th>
+                            <th>Espace Name</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in AbonnementsList)
+                        {
+                            <tr>
+                                <td>@a.Id</td>
+                                <td>@a.Type</td>
+                                <td>$@a.Prix.ToString("F2")</td>
+                                <td>@a.DateDebut.ToString("dd/MM/yyyy")</td>
+                                <td>@a.DateFin.ToString("dd/MM/yyyy")</td>
+                                <td>@GetUserName(a.UtilisateurId)</td>
+                                <td>@GetEspaceName(a.EspaceId)</td>
+                                <td><span class="badge-soft">@a.Statut</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary me-1" @onclick="() => StartEdit(a)">Edit</button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAbonnement(a.Id)">Delete</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Abonnement> AbonnementsList = new();
+    private List<Espace> Espaces = new();
+    private List<Utilisateur> Users = new();
+    private CoworkingFrontend.Models.Abonnement? EditingAbonnement;
+    private bool IsLoading = true;
+    private bool IsProcessing = false;
+    private string GlobalError = string.Empty;
+    private string EditError = string.Empty;
+    private bool ShowEditModal = false;
+
+    private string DateStartString => EditingAbonnement?.DateDebut.ToString("yyyy-MM-dd") ?? string.Empty;
+    private string DateEndString => EditingAbonnement?.DateFin.ToString("yyyy-MM-dd") ?? string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoading = true;
+            AbonnementsList = await AbonnementService.GetAllAbonnementsAsync();
+            Espaces = await EspaceService.GetAllEspacesAsync();
+            await LoadUsers();
+            GlobalError = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            GlobalError = $"Error loading abonnements: {ex.Message}";
+        }
+        finally { IsLoading = false; }
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            Users = await AuthService.GetAllUsers();
+            if (Users == null)
+                Users = new List<Utilisateur>();
+        }
+        catch
+        {
+            Users = new List<Utilisateur>();
+        }
+    }
+
+    private string GetEspaceName(int id) => Espaces.FirstOrDefault(e => e.Id == id)?.Nom ?? $"Espace #{id}";
+
+    private string GetUserName(int id)
+    {
+        if (Users == null || Users.Count == 0)
+            return $"User #{id}";
+
+        var user = Users.FirstOrDefault(u => u.Id == id);
+        return user?.UserName ?? $"User #{id}";
+    }
+
+    private void StartEdit(Abonnement a)
+    {
+        EditingAbonnement = new CoworkingFrontend.Models.Abonnement
+        {
+            Id = a.Id,
+            EspaceId = a.EspaceId,
+            UtilisateurId = a.UtilisateurId,
+            Type = a.Type,
+            Prix = a.Prix,
+            DateDebut = a.DateDebut,
+            DateFin = a.DateFin,
+            Statut = a.Statut,
+            Notes = a.Notes
+        };
+        EditError = string.Empty;
+        ShowEditModal = true;
+    }
+
+    private void CancelEdit()
+    {
+        EditingAbonnement = null;
+        EditError = string.Empty;
+        ShowEditModal = false;
+    }
+
+    private void CloseEditModal()
+    {
+        ShowEditModal = false;
+        EditingAbonnement = null;
+    }
+
+    private async Task OnStartDateChanged(ChangeEventArgs e)
+    {
+        if (EditingAbonnement == null) return;
+        var str = e?.Value?.ToString();
+        if (DateTime.TryParse(str, out var d)) EditingAbonnement.DateDebut = d;
+    }
+
+    private async Task OnEndDateChanged(ChangeEventArgs e)
+    {
+        if (EditingAbonnement == null) return;
+        var str = e?.Value?.ToString();
+        if (DateTime.TryParse(str, out var d)) EditingAbonnement.DateFin = d;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (EditingAbonnement == null) return;
+        EditError = string.Empty;
+        if (EditingAbonnement.EspaceId == 0 || string.IsNullOrWhiteSpace(EditingAbonnement.Type) || EditingAbonnement.Prix <= 0)
+        {
+            EditError = "Please fill required fields.";
+            return;
+        }
+        if (EditingAbonnement.DateFin <= EditingAbonnement.DateDebut)
+        {
+            EditError = "End date must be after start date.";
+            return;
+        }
+
+        IsProcessing = true;
+        try
+        {
+            var ok = await AbonnementService.UpdateAbonnementAsync(EditingAbonnement.Id, EditingAbonnement);
+            if (ok)
+            {
+                CloseEditModal();
+                await LoadData();
+            }
+            else
+            {
+                EditError = "Failed to save changes.";
+            }
+        }
+        catch (Exception ex)
+        {
+            EditError = $"Error saving: {ex.Message}";
+        }
+        finally { IsProcessing = false; }
+    }
+
+    private async Task DeleteAbonnement(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this abonnement?")) return;
+        try
+        {
+            var ok = await AbonnementService.DeleteAbonnementAsync(id);
+            if (ok) await LoadData(); else GlobalError = "Failed to delete abonnement.";
+        }
+        catch (Exception ex)
+        {
+            GlobalError = $"Error deleting: {ex.Message}";
+        }
+    }
+}

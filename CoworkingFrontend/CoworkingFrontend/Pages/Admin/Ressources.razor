@@ -1,0 +1,341 @@
+﻿@page "/admin/ressources"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IRessourceService RessourceService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-0">Resources</h2>
+            <div class="muted">Manage equipment and inventory for espaces</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+            <button class="btn btn-primary" @onclick="() => ShowCreateForm = !ShowCreateForm">New Resource</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="panel mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="mb-0">Create New Resource</h5>
+                <small class="muted">Assign to an espace</small>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" @bind="NewRessource.Nom" placeholder="Resource name" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Type</label>
+                    <input type="text" class="form-control" @bind="NewRessource.Type" placeholder="e.g., Chair, Desk, Projector" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Espace</label>
+                    <select class="form-select" @bind="NewRessource.EspaceId">
+                        <option value="0">-- Select Espace --</option>
+                        @foreach (var espace in EspacesList)
+                        {
+                            <option value="@espace.Id">@espace.Nom</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Quantity Available</label>
+                    <input type="number" class="form-control" @bind="NewRessource.QuantiteDisponible" placeholder="Quantity" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger mt-3">@ErrorMessage</div>
+            }
+
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success" @onclick="CreateRessource" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Create Resource
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (IsLoading && RessourcesList.Count == 0)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (RessourcesList.Count == 0)
+    {
+        <div class="alert alert-info">No resources found.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var ressource in RessourcesList)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start justify-content-between mb-3">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-1">@ressource.Nom</h5>
+                                    <div class="text-muted small">
+                                        <div>@ressource.Type</div>
+                                        <div>@GetEspaceName(ressource.EspaceId)</div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-primary">Qty: @ressource.QuantiteDisponible</span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditRessource(ressource)">Edit</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteRessource(ressource.Id)">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (ShowEditModal)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Resource</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" @bind="EditRessource.Nom" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <input type="text" class="form-control" @bind="EditRessource.Type" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity Available</label>
+                        <input type="number" class="form-control" @bind="EditRessource.QuantiteDisponible" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Espace</label>
+                        <select class="form-select" @bind="EditRessource.EspaceId">
+                            <option value="0">-- Select Espace --</option>
+                            @foreach (var espace in EspacesList)
+                            {
+                                <option value="@espace.Id">@espace.Nom</option>
+                            }
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(EditError))
+                    {
+                        <div class="alert alert-danger">@EditError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveEditRessource">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Ressource> RessourcesList = new();
+    private List<Espace> EspacesList = new();
+    private Ressource NewRessource = new();
+    private bool IsLoading = true;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    private bool ShowEditModal = false;
+    private Ressource EditRessource = new();
+    private string EditError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoading = true;
+            RessourcesList = await RessourceService.GetAllRessourcesAsync();
+            EspacesList = await EspaceService.GetAllEspacesAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private string GetEspaceName(int id)
+    {
+        var espace = EspacesList.FirstOrDefault(e => e.Id == id);
+        return espace?.Nom ?? $"Espace #{id}";
+    }
+
+    private async Task CreateRessource()
+    {
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(NewRessource.Nom))
+        {
+            ErrorMessage = "Resource name is required";
+            return;
+        }
+
+        if (NewRessource.EspaceId == 0)
+        {
+            ErrorMessage = "Please select an espace";
+            return;
+        }
+
+        if (NewRessource.QuantiteDisponible < 0)
+        {
+            ErrorMessage = "Quantity cannot be negative";
+            return;
+        }
+
+        IsLoading = true;
+        try
+        {
+            bool success = await RessourceService.CreateRessourceAsync(NewRessource);
+
+            if (success)
+            {
+                NewRessource = new();
+                ShowCreateForm = false;
+                ErrorMessage = string.Empty;
+                await LoadData();
+            }
+            else
+            {
+                ErrorMessage = "Failed to create resource";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task DeleteRessource(int id)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this resource?");
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            bool success = await RessourceService.DeleteRessourceAsync(id);
+            if (success)
+            {
+                await LoadData();
+            }
+            else
+            {
+                ErrorMessage = "Failed to delete resource";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error deleting resource: {ex.Message}";
+        }
+    }
+
+    private void OpenEditRessource(Ressource res)
+    {
+        EditError = string.Empty;
+        EditRessource = new Ressource
+        {
+            Id = res.Id,
+            Nom = res.Nom,
+            Type = res.Type,
+            QuantiteDisponible = res.QuantiteDisponible,
+            EspaceId = res.EspaceId,
+            UtilisateurId = res.UtilisateurId
+        };
+        ShowEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        ShowEditModal = false;
+        EditRessource = new();
+        EditError = string.Empty;
+    }
+
+    private async Task SaveEditRessource()
+    {
+        EditError = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(EditRessource.Nom))
+        {
+            EditError = "Resource name is required";
+            return;
+        }
+
+        if (EditRessource.EspaceId == 0)
+        {
+            EditError = "Please select an espace";
+            return;
+        }
+
+        try
+        {
+            var success = await RessourceService.UpdateRessourceAsync(EditRessource.Id, EditRessource);
+
+            if (success)
+            {
+                ShowEditModal = false;
+                EditRessource = new();
+                EditError = string.Empty;
+                await LoadData();
+            }
+            else
+            {
+                EditError = "Failed to update resource";
+            }
+        }
+        catch (Exception ex)
+        {
+            EditError = $"Error: {ex.Message}";
+        }
+    }
+}

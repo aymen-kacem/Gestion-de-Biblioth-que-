@@ -1,0 +1,114 @@
+﻿@page "/dashboard"
+@using CoworkingBlazor.Services
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <!-- Hero Section -->
+    <div class="hero mb-4">
+        <div class="hero-content">
+            <h1>Welcome back, @Username!</h1>
+            <p class="muted">Quick access to the features relevant to your role.</p>
+
+            <div class="mt-3 d-flex gap-2">
+                <span class="badge-soft">Role: @UserRole</span>
+                <a class="btn btn-cta ms-2" href="/profile">Profile</a>
+            </div>
+        </div>
+        <div class="hero-visual text-end d-none d-md-block">
+            <i class="fas fa-coffee fa-4x" style="opacity:0.18;color:white"></i>
+        </div>
+    </div>
+
+    <!-- Shortcuts Panel -->
+    <div class="panel mb-4">
+        <h5 class="mb-3">Your shortcuts</h5>
+        <div class="features">
+            @if (UserRole == "Etudiant")
+            {
+                <div class="feature-card">
+                    <h4><i class="fas fa-file-invoice-dollar me-2 text-primary"></i> My Subscriptions</h4>
+                    <p class="muted">View and manage your abonnements and plans.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/my-abonnements">Open</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-calendar-check me-2 text-primary"></i> My Reservations</h4>
+                    <p class="muted">Check and update your reservations.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/my-reservations">Open</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-info-circle me-2 text-primary"></i> Help & Support</h4>
+                    <p class="muted">Contact admins or view documentation.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/help">Open</a></div>
+                </div>
+            }
+
+            @if (UserRole == "Admin")
+            {
+                <div class="feature-card">
+                    <h4><i class="fas fa-building me-2 text-primary"></i> Manage Espaces</h4>
+                    <p class="muted">Create, edit and remove coworking espaces.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/admin/espaces">Manage</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-boxes me-2 text-primary"></i> Manage Ressources</h4>
+                    <p class="muted">Manage equipment and inventory.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/admin/ressources">Manage</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-list me-2 text-primary"></i> All Reservations</h4>
+                    <p class="muted">Overview of all reservations in the system.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/admin/reservations">Open</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-file-contract me-2 text-primary"></i> All Abonnements</h4>
+                    <p class="muted">View and manage subscriptions.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/admin/abonnements">Open</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-tools me-2 text-primary"></i> Maintenance</h4>
+                    <p class="muted">Create and assign maintenance tasks.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/admin/maintenance">Open</a></div>
+                </div>
+            }
+
+            @if (UserRole == "Technicien")
+            {
+                <div class="feature-card">
+                    <h4><i class="fas fa-wrench me-2 text-primary"></i> My Tasks</h4>
+                    <p class="muted">View maintenance tasks assigned to you.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/technicien/maintenance">Open</a></div>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-clock me-2 text-primary"></i> Work Schedule</h4>
+                    <p class="muted">See your schedule and availability.</p>
+                    <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="/technicien/schedule">Open</a></div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Username = string.Empty;
+    private string UserRole = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        Username = await AuthService.GetUsernameAsync();
+        UserRole = await AuthService.GetRoleAsync();
+    }
+}

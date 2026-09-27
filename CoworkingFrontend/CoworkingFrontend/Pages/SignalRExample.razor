@@ -1,0 +1,63 @@
+@page "/signalr-example"
+@using CoworkingBlazor.Services
+@inject IJSRuntime JS
+@inject IAuthService AuthService
+
+<h3>SignalR Example</h3>
+<p>@Status</p>
+<button class="btn btn-primary" @onclick="StartConnection">Start Connection</button>
+<button class="btn btn-secondary" @onclick="SendPing">Send Ping</button>
+<button class="btn btn-danger" @onclick="StopConnection">Stop Connection</button>
+
+@code {
+    private string Status = "Idle";
+    private const string ConnectionKey = "mainHub";
+    private DotNetObjectReference<SignalRExample>? _objRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // optionally start automatically
+    }
+
+    private async Task StartConnection()
+    {
+        var token = await AuthService.GetTokenAsync();
+        _objRef = DotNetObjectReference.Create(this);
+        // change /hub/notifications to your hub route
+        await JS.InvokeVoidAsync("signalRClient.createConnection", ConnectionKey, "/hub/notifications", token);
+        await JS.InvokeVoidAsync("signalRClient.on", ConnectionKey, "ReceiveMessage", _objRef, "ReceiveMessageFromJs");
+        await JS.InvokeVoidAsync("signalRClient.start", ConnectionKey);
+        Status = "Connected";
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task ReceiveMessageFromJs(string user, string message)
+    {
+        Status = $"Msg from {user}: {message}";
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task SendPing()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("signalRClient.send", ConnectionKey, "Ping", "hello from client");
+        }
+        catch (Exception ex)
+        {
+            Status = "Send failed: " + ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StopConnection()
+    {
+        await JS.InvokeVoidAsync("signalRClient.stop", ConnectionKey);
+        _objRef?.Dispose();
+        _objRef = null;
+        Status = "Stopped";
+        StateHasChanged();
+    }
+}

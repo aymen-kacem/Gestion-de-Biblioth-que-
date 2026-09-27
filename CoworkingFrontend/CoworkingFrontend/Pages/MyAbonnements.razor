@@ -1,0 +1,261 @@
+﻿@page "/my-abonnements"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IAbonnementService AbonnementService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h2>My Subscriptions</h2>
+        <button class="btn btn-primary" @onclick="() => ShowCreateForm = !ShowCreateForm">New Subscription</button>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card p-4 mb-4 shadow-sm">
+            <h5>Create New Subscription</h5>
+            <small class="text-muted">Select espace + type + start date</small>
+
+            <div class="row mt-3 g-3">
+                <!-- ESPACE -->
+                <div class="col-md-6">
+                    <label class="form-label">Espace</label>
+                    <select class="form-select" @onchange="OnEspaceChanged">
+                        <option value="0">-- Select Espace --</option>
+                        @foreach (var espace in EspacesList)
+                        {
+                            <option value="@espace.Id" selected="@(NewAbonnement.EspaceId == espace.Id)">
+                                @espace.Nom (@espace.Type)
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- TYPE -->
+                <div class="col-md-6">
+                    <label class="form-label">Abonnement Type</label>
+                    <select class="form-select" @onchange="OnTypeChanged">
+                        <option value="">-- Select Type --</option>
+                        @foreach (var type in AbonnementTypes)
+                        {
+                            <option value="@type.Key" selected="@(NewAbonnement.Type == type.Key)">
+                                @type.Key - @type.Value DT
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- PRICE AUTO -->
+                <div class="col-md-4">
+                    <label class="form-label">Price</label>
+                    <input class="form-control" disabled
+                           value="@(string.IsNullOrEmpty(NewAbonnement.Type) ? "" : AbonnementTypes.GetValueOrDefault(NewAbonnement.Type).ToString() + " DT")" />
+                </div>
+
+                <!-- DATE DEBUT -->
+                <div class="col-md-4">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" class="form-control"
+                           value="@(NewAbonnement.DateDebut == default ? "" : NewAbonnement.DateDebut.ToString("yyyy-MM-dd"))"
+                           @onchange="OnStartDateChanged" />
+                </div>
+
+                <!-- DATE FIN AUTO -->
+                <div class="col-md-4">
+                    <label class="form-label">End Date (Auto)</label>
+                    <input type="date" class="form-control" disabled
+                           value="@(NewAbonnement.DateFin == default ? "" : NewAbonnement.DateFin.ToString("yyyy-MM-dd"))" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger mt-3">@ErrorMessage</div>
+            }
+
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success" @onclick="CreateAbonnement" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Create Subscription
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    <!-- LIST -->
+    @if (IsLoadingAbonnements)
+    {
+        <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (!AbonnementsList.Any())
+    {
+        <div class="alert alert-info">No subscriptions found.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var abonnement in AbonnementsList)
+            {
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-body d-flex align-items-start justify-content-between">
+                            <div>
+                                <h5 class="card-title">@abonnement.Type</h5>
+                                <div class="muted">
+                                    @abonnement.DateDebut.ToString("dd/MM/yyyy HH:mm") →
+                                    @abonnement.DateFin.ToString("dd/MM/yyyy HH:mm")
+                                </div>
+                                <p class="mt-2"><b>@abonnement.Prix DT</b></p>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge-soft mb-2">@abonnement.Statut.ToString()</div>
+                                <div>
+                                    <button class="btn btn-sm btn-danger"
+                                            @onclick="() => DeleteAbonnement(abonnement.Id)">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Abonnement> AbonnementsList = new();
+    private List<Espace> EspacesList = new();
+    private Dictionary<string, decimal> AbonnementTypes = new();
+    private Abonnement NewAbonnement = new();
+    private bool ShowCreateForm = false;
+    private bool IsLoadingAbonnements = true;
+    private bool IsLoading = false;
+    private string ErrorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        AbonnementsList = await AbonnementService.GetMyAbonnementsAsync();
+        EspacesList = await EspaceService.GetAllEspacesAsync();
+        await LoadTypes();
+        IsLoadingAbonnements = false;
+    }
+
+    private async Task LoadTypes()
+    {
+        var res = await Http.GetAsync("api/Abonnement/types");
+        if (res.IsSuccessStatusCode)
+        {
+            var json = await res.Content.ReadAsStringAsync();
+            AbonnementTypes = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, decimal>>(json) ?? new();
+        }
+    }
+
+    private void OnEspaceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e?.Value?.ToString(), out var id))
+            NewAbonnement.EspaceId = id;
+    }
+
+    private void OnTypeChanged(ChangeEventArgs e)
+    {
+        NewAbonnement.Type = e?.Value?.ToString() ?? "";
+        if (!string.IsNullOrEmpty(NewAbonnement.Type) && AbonnementTypes.ContainsKey(NewAbonnement.Type))
+            NewAbonnement.Prix = AbonnementTypes[NewAbonnement.Type];
+        UpdateEndDate();
+    }
+
+    private void OnStartDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e?.Value?.ToString(), out var d))
+        {
+            NewAbonnement.DateDebut = d;
+            UpdateEndDate();
+        }
+    }
+
+    private void UpdateEndDate()
+    {
+        if (NewAbonnement.DateDebut == default || string.IsNullOrEmpty(NewAbonnement.Type))
+        {
+            NewAbonnement.DateFin = default;
+            StateHasChanged();
+            return;
+        }
+
+        NewAbonnement.DateFin = NewAbonnement.Type switch
+        {
+            "Mensuel" => NewAbonnement.DateDebut.AddMonths(1),
+            "Trimestrel" => NewAbonnement.DateDebut.AddMonths(3),
+            "Semestriel" => NewAbonnement.DateDebut.AddMonths(6),
+            "Annuel" => NewAbonnement.DateDebut.AddYears(1),
+            _ => NewAbonnement.DateDebut
+        };
+
+        StateHasChanged();
+    }
+
+    private async Task CreateAbonnement()
+    {
+        ErrorMessage = "";
+        UpdateEndDate();
+
+        if (NewAbonnement.EspaceId == 0) { ErrorMessage = "Veuillez sélectionner un espace."; return; }
+        if (string.IsNullOrEmpty(NewAbonnement.Type)) { ErrorMessage = "Veuillez sélectionner un type d'abonnement."; return; }
+        if (NewAbonnement.DateDebut == default) { ErrorMessage = "Veuillez sélectionner une date de début."; return; }
+        if (NewAbonnement.DateFin <= NewAbonnement.DateDebut) { ErrorMessage = "Date de fin invalide."; return; }
+
+        // Check overlap with existing abonnements
+        bool overlaps = AbonnementsList.Any(a =>
+            NewAbonnement.DateDebut < a.DateFin && NewAbonnement.DateFin > a.DateDebut
+        );
+
+        if (overlaps)
+        {
+            ErrorMessage = "Vous avez déjà un abonnement qui chevauche cette période.";
+            return;
+        }
+
+        IsLoading = true;
+        var result = await AbonnementService.CreateAbonnementAsync(NewAbonnement);
+        IsLoading = false;
+
+        if (result == null)
+        {
+            ErrorMessage = "Erreur lors de la création.";
+            return;
+        }
+
+        NewAbonnement = new Abonnement();
+        ShowCreateForm = false;
+        await LoadData();
+    }
+
+    private async Task DeleteAbonnement(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Supprimer cet abonnement ?"))
+        {
+            await AbonnementService.DeleteAbonnementAsync(id);
+            await LoadData();
+        }
+    }
+}

@@ -1,0 +1,10 @@
+# Fichiers de build et de sortie
+[Dd]ebug/
+[Rr]elease/
+bin/
+obj/
+
+# Fichiers de configuration utilisateur et IDE
+.vs/
+.vscode/
+*.user

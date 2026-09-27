@@ -1,0 +1,56 @@
+﻿@using CoworkingBlazor.Services
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid d-flex align-items-center justify-content-between">
+        <a class="navbar-brand" href="/">Coworking</a>
+        <div class="d-flex align-items-center">
+            @if (AuthService.IsAuthenticated)
+            {
+                <span class="muted me-3 d-none d-md-inline">@Username</span>
+                <a class="btn btn-sm btn-outline-light" href="/dashboard">Open Dashboard</a>
+            }
+            else
+            {
+                <a class="btn btn-sm btn-outline-light" href="/login">Login</a>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="collapse d-lg-none" id="mobileNav">
+    <nav class="flex-column p-3">
+        @if (AuthService.IsAuthenticated)
+        {
+            <NavLink class="nav-link" href="dashboard">Dashboard</NavLink>
+            <NavLink class="nav-link" href="my-abonnements">My Subscriptions</NavLink>
+            <NavLink class="nav-link" href="my-reservations">My Reservations</NavLink>
+            <NavLink class="nav-link" href="admin/espaces">Manage Espaces</NavLink>
+        }
+        else
+        {
+            <NavLink class="nav-link" href="login">Login</NavLink>
+            <NavLink class="nav-link" href="register">Register</NavLink>
+        }
+    </nav>
+</div>
+
+@code {
+    private string Username = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            try
+            {
+                Username = await AuthService.GetUsernameAsync();
+            }
+            catch
+            {
+                Username = "User";
+            }
+        }
+    }
+}

@@ -1,0 +1,128 @@
+﻿@inherits LayoutComponentBase
+@using CoworkingBlazor.Services
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject IJSRuntime JS
+
+<div class="app-shell d-flex">
+    <aside class="sidebar shadow-sm">
+        <div class="sidebar-header p-3 d-flex align-items-center justify-content-between">
+            <a class="navbar-brand text-primary" href="/dashboard"><strong>CoWorking</strong></a>
+            <button class="btn btn-sm btn-outline-secondary d-lg-none" @onclick="ToggleSidebar"><i class="fas fa-times"></i></button>
+        </div>
+        <nav class="nav flex-column p-2">
+            @if (AuthService.IsAuthenticated)
+            {
+                <a class="nav-link d-flex align-items-center" href="/dashboard"><i class="fas fa-home me-2"></i> Dashboard</a>
+
+                @if (UserRole == "Etudiant")
+                {
+                    <a class="nav-link d-flex align-items-center" href="/my-abonnements"><i class="fas fa-file-invoice-dollar me-2"></i> My Subscriptions</a>
+                    <a class="nav-link d-flex align-items-center" href="/my-reservations"><i class="fas fa-calendar-check me-2"></i> My Reservations</a>
+                }
+
+                @if (UserRole == "Admin")
+                {
+                    <a class="nav-link d-flex align-items-center" href="/admin/espaces"><i class="fas fa-building me-2"></i> Espaces</a>
+                    <a class="nav-link d-flex align-items-center" href="/admin/ressources"><i class="fas fa-boxes me-2"></i> Ressources</a>
+                    <a class="nav-link d-flex align-items-center" href="/admin/abonnements"><i class="fas fa-file-contract me-2"></i> Abonnements</a>
+                    <a class="nav-link d-flex align-items-center" href="/admin/reservations"><i class="fas fa-list me-2"></i> Reservations</a>
+                    <a class="nav-link d-flex align-items-center" href="/admin/maintenance"><i class="fas fa-tools me-2"></i> Maintenance</a>
+                }
+
+                @if (UserRole == "Technicien")
+                {
+                    <a class="nav-link d-flex align-items-center" href="/technicien/maintenance"><i class="fas fa-wrench me-2"></i> My Tasks</a>
+                }
+            }
+        </nav>
+
+        <div class="sidebar-footer p-3 mt-auto">
+            @if (AuthService.IsAuthenticated)
+            {
+                <div class="small muted">Signed in as</div>
+                <div class="fw-bold">@Username</div>
+                <div class="muted small mb-2">@UserRole</div>
+                <button class="btn btn-outline-danger btn-sm" @onclick="HandleLogout"><i class="fas fa-sign-out-alt me-1"></i> Logout</button>
+            }
+            else
+            {
+                <a class="btn btn-outline-primary w-100" href="/login">Login</a>
+            }
+        </div>
+    </aside>
+
+    <div class="main flex-fill">
+        <header class="topbar p-3">
+            <div class="container-fluid d-flex align-items-center justify-content-between">
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-2 d-lg-none" @onclick="ToggleSidebar"><i class="fas fa-bars"></i></button>
+                    <span class="text-muted small">Welcome to CoWorking Management</span>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-2" @onclick="ToggleTheme">@ThemeButtonText <i class="@(IsDark ? "fas fa-moon" : "fas fa-sun") ms-2"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <main style="padding-top:1.25rem;">
+            <div class="container-fluid content">
+                @Body
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private string Username = "Guest";
+    private string UserRole = string.Empty;
+    private bool SidebarCollapsed = false;
+    private bool IsDark = false;
+    private string ThemeButtonText => IsDark ? "Dark" : "Light";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            try
+            {
+                Username = await AuthService.GetUsernameAsync();
+                UserRole = await AuthService.GetRoleAsync();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        try
+        {
+            var t = await JS.InvokeAsync<string>("cwTheme.getTheme");
+            IsDark = t == "dark";
+        }
+        catch { }
+    }
+
+    private void ToggleSidebar()
+    {
+        SidebarCollapsed = !SidebarCollapsed;
+    }
+
+    private async Task ToggleTheme()
+    {
+        try
+        {
+            var newTheme = IsDark ? "light" : "dark";
+            await JS.InvokeVoidAsync("cwTheme.setTheme", newTheme);
+            IsDark = !IsDark;
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        NavigationManager.NavigateTo("/login");
+    }
+}
